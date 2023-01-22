@@ -1,3 +1,5 @@
+import numpy as np
+
 import bpy
 from bpy.types import Operator
 from bpy.props import (
@@ -9,6 +11,9 @@ from bpy.props import (
 )
 from math import sin, cos, pi
 from mathutils import Vector
+
+from .sure_uv_utils import get_settings
+
 
 class OBJECT_OT_SureUVOperator(bpy.types.Operator):
     """Sure UV Mapping"""
@@ -73,23 +78,32 @@ class OBJECT_OT_SureUVOperator(bpy.types.Operator):
             row.prop(self,'reset_texaspect')
             row.prop(self,'guess_texaspect')
 
-        elif self.action == 'box':          
+        elif self.action == 'box':
+            tex_name = '-- No texture is selected on sidebar --'
+            settings = get_settings()
+            if settings.teximage:
+                tex_name = settings.teximage.name
             layout = self.layout
+            layout.label(text=f'Texture: {tex_name}')
             layout.label(text="Size")
             row = layout.row()
             row.prop(self,'size', text="")
             row.prop(self,'reset_size', icon="LOOP_BACK", text="")
 
-            row = layout.row()
+            split = layout.row()
+
+            col = split.column()
+            row = col.row()
             row.label(text="XYZ rotation")
             row.prop(self,'reset_xyz_rot',text="", icon="LOOP_BACK")
-            layout.prop(self,'rot', text="")
+            col.prop(self,'rot', text="")
 
-            row = layout.row()
+            col = split.column()
+            row = col.row()
             row.label(text="XYZ offset")
             row.prop(self,'reset_xyz_offset',text="", icon="LOOP_BACK")
+            col.prop(self,'offset', text="")
 
-            layout.prop(self,'offset', text="")
             layout.label(text="Texture Aspect")
             layout.prop(self,'texaspect', text="")
             row = layout.row()
@@ -248,7 +262,36 @@ class OBJECT_OT_SureUVOperator(bpy.types.Operator):
         
         ofxsrz = ofx * srz
         ofycrz = ofy * crz
-        
+
+        mat_x1 = np.array([
+            [0, crx, srx, -ofycrx - ofzsrx],
+            [0, -aspect * srx, aspect * crx, ofysrx - ofzcrx]
+        ])
+        mat_x2 = np.array([
+            [0, -crx, srx, ofycrx - ofzsrx],
+            [0, aspect * srx, aspect * crx, -ofysrx - ofzcrx]
+        ])
+        mat_y1 = np.array([
+            [-cry, 0, sry, ofxcry - ofzsry],
+            [aspect * sry, 0, aspect * cry, -ofxsry - ofzcry]
+        ])
+        mat_y2 = np.array([
+            [cry, 0, sry, -ofxcry - ofzsry],
+            [-aspect * sry, 0, aspect * cry, ofxsry - ofzcry]
+        ])
+        mat_z1 = np.array([
+            [crz, srz, 0, -ofxcrz - ofysrz],
+            [-aspect * srz, aspect * crz, 0, ofxsrz - ofycrz]
+        ])
+        mat_z2 = np.array([
+            [-crz, -srz, 0, ofxcrz - ofysrz],
+            [-aspect * srz, aspect * crz, 0, -ofxsrz - ofycrz]
+        ])
+
+        # TODO
+        # indices = (ar > 6).nonzero()
+        # np.put(ar1, indices, ar2)
+
         #uvs = mesh.uv_loop_layers[mesh.uv_loop_layers.active_index].data
         uvs = mesh.uv_layers.active.data
         for i, pol in enumerate(mesh.polygons):
@@ -262,30 +305,37 @@ class OBJECT_OT_SureUVOperator(bpy.types.Operator):
                     x = co.x * sx
                     y = co.y * sy
                     z = co.z * sz
+                    vec = np.array([x, y, z, 1])
                     if abs(n[0]) > abs(n[1]) and abs(n[0]) > abs(n[2]):
                         # X
                         if n[0] >= 0:
-                            uvs[loop].uv[0] =  y * crx + z * srx                    - ofycrx - ofzsrx
-                            uvs[loop].uv[1] = -y * aspect * srx + z * aspect * crx  + ofysrx - ofzcrx
+                            # uvs[loop].uv[0] =  y * crx + z * srx                    - ofycrx - ofzsrx
+                            # uvs[loop].uv[1] = -y * aspect * srx + z * aspect * crx  + ofysrx - ofzcrx
+                            uvs[loop].uv = mat_x1 @ vec
                         else:
-                            uvs[loop].uv[0] = -y * crx + z * srx                    + ofycrx - ofzsrx
-                            uvs[loop].uv[1] =  y * aspect * srx + z * aspect * crx  - ofysrx - ofzcrx
+                            # uvs[loop].uv[0] = -y * crx + z * srx                    + ofycrx - ofzsrx
+                            # uvs[loop].uv[1] =  y * aspect * srx + z * aspect * crx  - ofysrx - ofzcrx
+                            uvs[loop].uv = mat_x2 @ vec
                     elif abs(n[1]) > abs(n[0]) and abs(n[1]) > abs(n[2]):
                         # Y
                         if n[1] >= 0:
-                            uvs[loop].uv[0] =  -x * cry + z * sry                   + ofxcry - ofzsry
-                            uvs[loop].uv[1] =   x * aspect * sry + z * aspect * cry - ofxsry - ofzcry
+                            # uvs[loop].uv[0] =  -x * cry + z * sry                   + ofxcry - ofzsry
+                            # uvs[loop].uv[1] =   x * aspect * sry + z * aspect * cry - ofxsry - ofzcry
+                            uvs[loop].uv = mat_y1 @ vec
                         else:
-                            uvs[loop].uv[0] =   x * cry + z * sry                   - ofxcry - ofzsry
-                            uvs[loop].uv[1] =  -x * aspect * sry + z * aspect * cry + ofxsry - ofzcry
+                            # uvs[loop].uv[0] =   x * cry + z * sry                   - ofxcry - ofzsry
+                            # uvs[loop].uv[1] =  -x * aspect * sry + z * aspect * cry + ofxsry - ofzcry
+                            uvs[loop].uv = mat_y2 @ vec
                     else:
                         # Z
                         if n[2] >= 0:
-                            uvs[loop].uv[0] =   x * crz + y * srz +                 - ofxcrz - ofysrz
-                            uvs[loop].uv[1] =  -x * aspect * srz + y * aspect * crz + ofxsrz - ofycrz
+                            # uvs[loop].uv[0] =   x * crz + y * srz +                 - ofxcrz - ofysrz
+                            # uvs[loop].uv[1] =  -x * aspect * srz + y * aspect * crz + ofxsrz - ofycrz
+                            uvs[loop].uv = mat_z1 @ vec
                         else:
-                            uvs[loop].uv[0] =  -y * srz - x * crz                   + ofxcrz - ofysrz
-                            uvs[loop].uv[1] =   y * aspect * crz - x * aspect * srz - ofxsrz - ofycrz
+                            # uvs[loop].uv[0] =  -y * srz - x * crz                   + ofxcrz - ofysrz
+                            # uvs[loop].uv[1] =   y * aspect * crz - x * aspect * srz - ofxsrz - ofycrz
+                            uvs[loop].uv = mat_z2 @ vec
         
         # Back to EDIT Mode
         if is_editmode:
