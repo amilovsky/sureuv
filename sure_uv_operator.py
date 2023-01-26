@@ -12,7 +12,7 @@ from bpy.props import (
 from math import sin, cos, pi
 from mathutils import Vector
 
-from .sure_uv_utils import get_settings
+from .sure_uv_utils import get_settings, get_mesh_verts
 
 
 class OBJECT_OT_SureUVOperator(bpy.types.Operator):
@@ -195,29 +195,9 @@ class OBJECT_OT_SureUVOperator(bpy.types.Operator):
         self.act(context)
         return {'FINISHED'}
 
-    def box_map(self):
-        scene = bpy.context.scene
-        obj = bpy.context.object
-        sure = scene.sure_uv_settings
-        # print('** Boxmap **')
-        mesh = obj.data
-
-        is_editmode = (obj.mode == 'EDIT')
-
-        # if in EDIT Mode switch to OBJECT
-        if is_editmode:
-            bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-
-        # if no UVtex - create it
-        if not len(mesh.uv_layers)>0:
-            uvtex = bpy.ops.mesh.uv_texture_add()
-        uvtex = mesh.uv_layers.active
-
+    def get_matrices(self):
         aspect = self.texaspect
 
-        #
-        # Main action
-        #
         if self.size:
             sc = 1.0/self.size
         else:
@@ -263,79 +243,78 @@ class OBJECT_OT_SureUVOperator(bpy.types.Operator):
         ofxsrz = ofx * srz
         ofycrz = ofy * crz
 
-        mat_x1 = np.array([
-            [0, crx, srx, -ofycrx - ofzsrx],
-            [0, -aspect * srx, aspect * crx, ofysrx - ofzcrx]
-        ])
-        mat_x2 = np.array([
-            [0, -crx, srx, ofycrx - ofzsrx],
-            [0, aspect * srx, aspect * crx, -ofysrx - ofzcrx]
-        ])
-        mat_y1 = np.array([
-            [-cry, 0, sry, ofxcry - ofzsry],
-            [aspect * sry, 0, aspect * cry, -ofxsry - ofzcry]
-        ])
-        mat_y2 = np.array([
-            [cry, 0, sry, -ofxcry - ofzsry],
-            [-aspect * sry, 0, aspect * cry, ofxsry - ofzcry]
-        ])
-        mat_z1 = np.array([
-            [crz, srz, 0, -ofxcrz - ofysrz],
-            [-aspect * srz, aspect * crz, 0, ofxsrz - ofycrz]
-        ])
-        mat_z2 = np.array([
-            [-crz, -srz, 0, ofxcrz - ofysrz],
-            [-aspect * srz, aspect * crz, 0, -ofxsrz - ofycrz]
-        ])
+        matrices = []
+        matrices.append(np.array([
+            [0, crx * sy, srx * sz, -ofycrx - ofzsrx],
+            [0, -aspect * srx * sy, aspect * crx * sz, ofysrx - ofzcrx]
+        ]))
+        matrices.append(np.array([
+            [0, -crx * sy, srx * sz, ofycrx - ofzsrx],
+            [0, aspect * srx * sy, aspect * crx *sz, -ofysrx - ofzcrx]
+        ]))
+        matrices.append(np.array([
+            [-cry * sx, 0, sry * sz, ofxcry - ofzsry],
+            [aspect * sry * sx, 0, aspect * cry * sz, -ofxsry - ofzcry]
+        ]))
+        matrices.append(np.array([
+            [cry * sx, 0, sry * sz, -ofxcry - ofzsry],
+            [-aspect * sry * sx, 0, aspect * cry * sz, ofxsry - ofzcry]
+        ]))
+        matrices.append(np.array([
+            [crz * sx, srz * sy, 0, -ofxcrz - ofysrz],
+            [-aspect * srz * sx, aspect * crz * sy, 0, ofxsrz - ofycrz]
+        ]))
+        matrices.append(np.array([
+            [-crz * sx, -srz * sy, 0, ofxcrz - ofysrz],
+            [-aspect * srz * sx, aspect * crz * sy, 0, -ofxsrz - ofycrz]
+        ]))
+        return matrices
 
-        # TODO
-        # indices = (ar > 6).nonzero()
-        # np.put(ar1, indices, ar2)
+    def box_map(self):
+        scene = bpy.context.scene
+        obj = bpy.context.object
+        sure = scene.sure_uv_settings
+        mesh = obj.data
+        is_editmode = (obj.mode == 'EDIT')
+
+        # if in EDIT Mode switch to OBJECT
+        if is_editmode:
+            bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+
+        # if no UVtex - create it
+        if len(mesh.uv_layers) == 0:
+            bpy.ops.mesh.uv_texture_add()
+
+        matrices = self.get_matrices()
 
         #uvs = mesh.uv_loop_layers[mesh.uv_loop_layers.active_index].data
         uvs = mesh.uv_layers.active.data
+
         for i, pol in enumerate(mesh.polygons):
             if not is_editmode or mesh.polygons[i].select:
                 for j, loop in enumerate(mesh.polygons[i].loop_indices):
                     v_idx = mesh.loops[loop].vertex_index
-                    #print('before[%s]:' % v_idx)
-                    #print(uvs[loop].uv)
                     n = mesh.polygons[i].normal
                     co = mesh.vertices[v_idx].co
-                    x = co.x * sx
-                    y = co.y * sy
-                    z = co.z * sz
+                    x = co.x
+                    y = co.y
+                    z = co.z
                     vec = np.array([x, y, z, 1])
                     if abs(n[0]) > abs(n[1]) and abs(n[0]) > abs(n[2]):
-                        # X
                         if n[0] >= 0:
-                            # uvs[loop].uv[0] =  y * crx + z * srx                    - ofycrx - ofzsrx
-                            # uvs[loop].uv[1] = -y * aspect * srx + z * aspect * crx  + ofysrx - ofzcrx
-                            uvs[loop].uv = mat_x1 @ vec
+                            uvs[loop].uv = matrices[0] @ vec
                         else:
-                            # uvs[loop].uv[0] = -y * crx + z * srx                    + ofycrx - ofzsrx
-                            # uvs[loop].uv[1] =  y * aspect * srx + z * aspect * crx  - ofysrx - ofzcrx
-                            uvs[loop].uv = mat_x2 @ vec
+                            uvs[loop].uv = matrices[1] @ vec
                     elif abs(n[1]) > abs(n[0]) and abs(n[1]) > abs(n[2]):
-                        # Y
                         if n[1] >= 0:
-                            # uvs[loop].uv[0] =  -x * cry + z * sry                   + ofxcry - ofzsry
-                            # uvs[loop].uv[1] =   x * aspect * sry + z * aspect * cry - ofxsry - ofzcry
-                            uvs[loop].uv = mat_y1 @ vec
+                            uvs[loop].uv = matrices[2] @ vec
                         else:
-                            # uvs[loop].uv[0] =   x * cry + z * sry                   - ofxcry - ofzsry
-                            # uvs[loop].uv[1] =  -x * aspect * sry + z * aspect * cry + ofxsry - ofzcry
-                            uvs[loop].uv = mat_y2 @ vec
+                            uvs[loop].uv = matrices[3] @ vec
                     else:
-                        # Z
                         if n[2] >= 0:
-                            # uvs[loop].uv[0] =   x * crz + y * srz +                 - ofxcrz - ofysrz
-                            # uvs[loop].uv[1] =  -x * aspect * srz + y * aspect * crz + ofxsrz - ofycrz
-                            uvs[loop].uv = mat_z1 @ vec
+                            uvs[loop].uv = matrices[4] @ vec
                         else:
-                            # uvs[loop].uv[0] =  -y * srz - x * crz                   + ofxcrz - ofysrz
-                            # uvs[loop].uv[1] =   y * aspect * crz - x * aspect * srz - ofxsrz - ofycrz
-                            uvs[loop].uv = mat_z2 @ vec
+                            uvs[loop].uv = matrices[5] @ vec
         
         # Back to EDIT Mode
         if is_editmode:

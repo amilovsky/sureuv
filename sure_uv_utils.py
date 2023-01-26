@@ -5,12 +5,14 @@ import bpy
 from bpy.types import Object
 
 
-def get_obj_verts(obj: Object) -> np.ndarray:
-    mesh = obj.data
+def get_mesh_verts(mesh: Any) -> np.ndarray:
     verts = np.empty((len(mesh.vertices), 3), dtype=np.float32)
-    mesh.vertices.foreach_get('co',
-                              np.reshape(verts, len(mesh.vertices) * 3))
+    mesh.vertices.foreach_get('co', verts.ravel())
     return verts
+
+
+def get_obj_verts(obj: Object) -> np.ndarray:
+    return get_mesh_verts(obj.data)
 
 
 def get_uvmap(obj: Object) -> Optional[Any]:
@@ -29,19 +31,15 @@ def get_uvs(obj: Object) -> np.ndarray:
 
 def get_obj_normals(obj: Object) -> np.ndarray:
     mesh = obj.data
-    count = len(mesh.polygons)
-    normals = np.empty((count, 3), dtype=np.float32)
-    mesh.vertices.foreach_get('normal',
-                              np.reshape(normals, count * 3))
+    normals = np.empty((len(mesh.polygons), 3), dtype=np.float32)
+    mesh.vertices.foreach_get('normal', normals.ravel())
     return normals
 
 
 def get_obj_normals2(obj: Object) -> np.ndarray:
     mesh = obj.data
-    count = len(mesh.polygon_normals)
-    normals = np.empty((count, 3), dtype=np.float32)
-    mesh.polygon_normals.foreach_get('vector',
-                                     np.reshape(normals, count * 3))
+    normals = np.empty((len(mesh.polygon_normals), 3), dtype=np.float32)
+    mesh.polygon_normals.foreach_get('vector', normals.ravel())
     return normals
 
 
