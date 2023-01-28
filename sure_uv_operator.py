@@ -1,3 +1,4 @@
+from typing import List, Tuple
 import numpy as np
 
 import bpy
@@ -158,13 +159,13 @@ class OBJECT_OT_SureUVOperator(bpy.types.Operator):
             self.best_planar_map()
         
         elif self.action == 'box':
-            self.box_map()
+            self.box_mapping()
         
         elif self.action == 'doneplanar':
             self.best_planar_map()
         
         elif self.action == 'donebox':
-            self.box_map()
+            self.box_mapping()
         
         elif self.action == 'showtex':
             areas = context.workspace.screens[0].areas
@@ -195,23 +196,21 @@ class OBJECT_OT_SureUVOperator(bpy.types.Operator):
         self.act(context)
         return {'FINISHED'}
 
-    def get_matrices(self):
-        aspect = self.texaspect
+    @staticmethod
+    def get_box_project_matrices(
+            size: float, aspect: float,
+            rotation: Tuple[float, float, float],
+            offset: Tuple[float, float, float]) -> List[np.ndarray]:
 
-        if self.size:
-            sc = 1.0/self.size
-        else:
-            sc = 1.0   
+        sc = 1.0 / size if size != 0 else 1.0
 
         sx = 1 * sc
         sy = 1 * sc
         sz = 1 * sc
-        ofx = self.offset[0]
-        ofy = self.offset[1]
-        ofz = self.offset[2]
-        rx = self.rot[0] / 180 * pi
-        ry = self.rot[1] / 180 * pi
-        rz = self.rot[2] / 180 * pi
+        ofx, ofy, ofz = offset
+        rx = rotation[0] * pi / 180.0
+        ry = rotation[1] * pi / 180.0
+        rz = rotation[2] * pi / 180.0
         
         crx = cos(rx)
         srx = sin(rx)
@@ -270,58 +269,77 @@ class OBJECT_OT_SureUVOperator(bpy.types.Operator):
         ]))
         return matrices
 
-    def box_map(self):
+    def box_mapping(self):
         scene = bpy.context.scene
         obj = bpy.context.object
         sure = scene.sure_uv_settings
         mesh = obj.data
-        is_editmode = (obj.mode == 'EDIT')
+        in_editmode = (obj.mode == 'EDIT')
 
-        # if in EDIT Mode switch to OBJECT
-        if is_editmode:
+        if in_editmode:
             bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 
-        # if no UVtex - create it
         if len(mesh.uv_layers) == 0:
             bpy.ops.mesh.uv_texture_add()
 
-        matrices = self.get_matrices()
+        matrices = self.get_box_project_matrices(self.size, self.texaspect,
+                                                 self.rot, self.offset)
 
-        #uvs = mesh.uv_loop_layers[mesh.uv_loop_layers.active_index].data
-        uvs = mesh.uv_layers.active.data
+        loop_vertex_indices = np.empty((len(mesh.loops),), dtype=np.int32)
+        mesh.loops.foreach_get('vertex_index', loop_vertex_indices)
 
-        for i, pol in enumerate(mesh.polygons):
-            if not is_editmode or mesh.polygons[i].select:
-                for j, loop in enumerate(mesh.polygons[i].loop_indices):
-                    v_idx = mesh.loops[loop].vertex_index
-                    n = mesh.polygons[i].normal
-                    co = mesh.vertices[v_idx].co
-                    x = co.x
-                    y = co.y
-                    z = co.z
-                    vec = np.array([x, y, z, 1])
-                    if abs(n[0]) > abs(n[1]) and abs(n[0]) > abs(n[2]):
-                        if n[0] >= 0:
-                            uvs[loop].uv = matrices[0] @ vec
-                        else:
-                            uvs[loop].uv = matrices[1] @ vec
-                    elif abs(n[1]) > abs(n[0]) and abs(n[1]) > abs(n[2]):
-                        if n[1] >= 0:
-                            uvs[loop].uv = matrices[2] @ vec
-                        else:
-                            uvs[loop].uv = matrices[3] @ vec
-                    else:
-                        if n[2] >= 0:
-                            uvs[loop].uv = matrices[4] @ vec
-                        else:
-                            uvs[loop].uv = matrices[5] @ vec
-        
+        mesh_verts = np.empty((len(mesh.vertices), 3), dtype=np.float32)
+        mesh.vertices.foreach_get('co', mesh_verts.ravel())
+
+        loop_verts = np.pad(mesh_verts[loop_vertex_indices], (0, 1),
+                            'constant', constant_values=1)
+
+        if in_editmode:
+            selected_polygons = np.empty((len(mesh.polygons),), dtype=np.bool)
+            mesh.polygons.foreach_get('select', selected_polygons)
+            choice_indices = np.full((len(mesh.loops),), -1, dtype=np.int32)
+        else:
+            choice_indices = np.empty((len(mesh.loops),), dtype=np.int32)
+
+        polygons = mesh.polygons if not in_editmode else \
+            np.take(mesh.polygons, selected_polygons.nonzero()[0])
+
+        for p in polygons:
+            n = p.normal
+            if abs(n[0]) > abs(n[1]) and abs(n[0]) > abs(n[2]):
+                if n[0] >= 0:
+                    choice = 0
+                else:
+                    choice = 1
+            elif abs(n[1]) > abs(n[0]) and abs(n[1]) > abs(n[2]):
+                if n[1] >= 0:
+                    choice = 2
+                else:
+                    choice = 3
+            else:
+                if n[2] >= 0:
+                    choice = 4
+                else:
+                    choice = 5
+            choice_indices[p.loop_indices] = choice
+
+        dir_indices = [(choice_indices == x).nonzero() for x in range(6)]
+
+        uvmap = mesh.uv_layers.active.data
+        new_uvs = np.empty((len(mesh.loops), 2), dtype=np.float32)
+
+        if in_editmode:
+            uvmap.foreach_get('uv', new_uvs.ravel())
+
+        for i in range(6):
+            new_uvs[dir_indices[i]] = loop_verts[dir_indices[i]] @ matrices[i].transpose()
+
+        uvmap.foreach_set('uv', new_uvs.ravel())
+
         # Back to EDIT Mode
-        if is_editmode:
+        if in_editmode:
             bpy.ops.object.mode_set(mode='EDIT', toggle=False)
 
-
-    # Best Planar Mapping
     def best_planar_map(self):        
         obj = bpy.context.object
         mesh = obj.data
@@ -348,15 +366,15 @@ class OBJECT_OT_SureUVOperator(bpy.types.Operator):
             sc = 1.0   
 
         # Calculate Average Normal
-        v = Vector((0,0,0))
+        cum_vec = Vector((0,0,0))
         cnt = 0
-        for f in mesh.polygons:  
-            if f.select:
+        for face in mesh.polygons:
+            if face.select:
                 cnt += 1
-                v = v + f.normal
+                cum_vec = cum_vec + face.normal
         
         zv = Vector((0,0,1))
-        q = v.rotation_difference(zv)
+        q = cum_vec.rotation_difference(zv)
                 
 
         sx = 1 * sc
