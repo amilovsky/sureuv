@@ -17,24 +17,32 @@ from .sure_uv_utils import get_settings, get_mesh_verts
 
 
 class OBJECT_OT_SureUVOperator(bpy.types.Operator):
-    """Sure UV Mapping"""
-    bl_idname = "object.sure_uv_operator"
-    bl_label = "Sure UV Operator"
+    bl_idname = 'object.sure_uv_operator'
+    bl_label = 'Sure UV Operator'
+    bl_description = 'Sure UV Mapping: Box / Best Planar'
     bl_options = {'REGISTER', 'UNDO'}
 
-    action: StringProperty(name="String Value")
-    size: FloatProperty(name="Size", default=1.0, precision=4)
-    rot: FloatVectorProperty(name="XYZ Rotation")
-    offset: FloatVectorProperty(name="XYZ offset", precision=4)
+    action: StringProperty(name='Action name')
+    size: FloatProperty(name='Size', default=1.0, precision=4,
+                        description='Texture real size')
+    texaspect: FloatProperty(name='Texture aspect', default=1.0, precision=4,
+                             description='Texture aspect')
 
-    zrot: FloatProperty(name="Z rotation", default=0.0)
-    xoffset: FloatProperty(name="X offset", default=0.0, precision=4)
-    yoffset: FloatProperty(name="Y offset", default=0.0, precision=4)
-    texaspect: FloatProperty(name="Texture aspect", default=1.0, precision=4)
-    
-    reset_size: BoolProperty(name="Reset Size")
-    reset_xoffset: BoolProperty(name="Reset X Offset")
-    reset_yoffset: BoolProperty(name="Reset Y Offset")
+    rot: FloatVectorProperty(name='XYZ Rotation',
+                             description='Angles of rotation')
+    offset: FloatVectorProperty(name='XYZ offset', precision=4)
+
+    zrot: FloatProperty(name='Z rotation', default=0.0,
+                        description='Angle of rotation')
+    xoffset: FloatProperty(name='X offset', default=0.0, precision=4,
+                           description='X offset ')
+    yoffset: FloatProperty(name='Y offset', default=0.0, precision=4,
+                           description='Y offset')
+
+    reset_size: BoolProperty(name='Reset Size',
+                             description='Reset texture real size')
+    reset_xoffset: BoolProperty(name='Reset X Offset')
+    reset_yoffset: BoolProperty(name='Reset Y Offset')
 
     reset_xyz_rot: BoolProperty(name="Reset XYZ Rotation")
     reset_xyz_offset: BoolProperty(name="Reset XYZ Offset")
@@ -48,21 +56,29 @@ class OBJECT_OT_SureUVOperator(bpy.types.Operator):
 
     def draw(self, context):
         if self.action == 'bestplanar':
-            # self.action = 'bestplanar'
+            tex_name = '-- No texture is selected --'
+            settings = get_settings()
+            if settings.teximage:
+                tex_name = settings.teximage.name
             layout = self.layout
-            layout.label(text="Size")
+            layout.label(text=f'Texture: {tex_name}')
+            layout.template_ID_preview(settings, 'teximage', rows=4, cols=6,
+                                       hide_buttons=True)
+            layout.label(text='Size')
             row = layout.row()
-            row.prop(self,'size', text="")
+            row.prop(self,'size', text='')
             row.prop(self,'reset_size', icon="LOOP_BACK", text="")
 
-            layout.label(text="Z rotation")
+            layout.label(text='Z rotation')
             row = layout.row()
-            row.prop(self,'zrot',text="")
-            row.prop(self,'flag_zero',text="", icon="LOOP_BACK")
+            row.prop(self, 'zrot', text='')
+            row.prop(self, 'flag_zero', text='', icon='LOOP_BACK', expand=True)
             
             row = layout.row()
-            row.prop(self,'flag_ccw',text="-45 (CCW)")
-            row.prop(self,'flag_cw',text="+45 (CW)")
+            row.prop(self,'flag_ccw', text='-45 (CCW)',
+                     expand=True, icon='LOOP_BACK')
+            row.prop(self,'flag_cw', text='+45 (CW)',
+                     expand=True, icon='LOOP_FORWARDS')
             
             layout.label(text="XY offset")
             col = layout.column()
@@ -80,16 +96,18 @@ class OBJECT_OT_SureUVOperator(bpy.types.Operator):
             row.prop(self,'guess_texaspect')
 
         elif self.action == 'box':
-            tex_name = '-- No texture is selected on sidebar --'
+            tex_name = '-- No texture is selected --'
             settings = get_settings()
             if settings.teximage:
                 tex_name = settings.teximage.name
             layout = self.layout
             layout.label(text=f'Texture: {tex_name}')
-            layout.label(text="Size")
+            layout.template_ID_preview(settings, 'teximage', rows=4, cols=6,
+                                       hide_buttons=True)
+            layout.label(text='Size')
             row = layout.row()
-            row.prop(self,'size', text="")
-            row.prop(self,'reset_size', icon="LOOP_BACK", text="")
+            row.prop(self,'size', text='')
+            row.prop(self,'reset_size', icon='LOOP_BACK', text='')
 
             split = layout.row()
 
@@ -108,8 +126,8 @@ class OBJECT_OT_SureUVOperator(bpy.types.Operator):
             layout.label(text="Texture Aspect")
             layout.prop(self,'texaspect', text="")
             row = layout.row()
-            row.prop(self,'reset_texaspect')
-            row.prop(self,'guess_texaspect')
+            row.prop(self,'reset_texaspect', icon='IMAGE', expand=True)
+            row.prop(self,'guess_texaspect', icon='IMAGE', expand=True)
 
 
     def act(self, context):
@@ -179,10 +197,7 @@ class OBJECT_OT_SureUVOperator(bpy.types.Operator):
     def invoke(self, context, event):
         # print('-- INVOKE --')
         # print(self.action)
-        # print(self.texaspect)
-
         self.act(context)
-            
         # print('-- finish invoke --')
         return {'FINISHED'}
 
@@ -336,7 +351,6 @@ class OBJECT_OT_SureUVOperator(bpy.types.Operator):
 
         uvmap.foreach_set('uv', new_uvs.ravel())
 
-        # Back to EDIT Mode
         if in_editmode:
             bpy.ops.object.mode_set(mode='EDIT', toggle=False)
 
@@ -344,65 +358,59 @@ class OBJECT_OT_SureUVOperator(bpy.types.Operator):
         obj = bpy.context.object
         mesh = obj.data
 
-        is_editmode = (obj.mode == 'EDIT')
+        in_editmode = (obj.mode == 'EDIT')
 
-        # if in EDIT Mode switch to OBJECT
-        if is_editmode:
+        if in_editmode:
             bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 
-        # if no UVtex - create it
         if not len(mesh.uv_layers)>0:
-            uvtex = bpy.ops.mesh.uv_texture_add()
-        uvtex = mesh.uv_layers.active
+            bpy.ops.mesh.uv_texture_add()
+
+        selected_polygons = np.empty((len(mesh.polygons),), dtype=np.bool)
+        mesh.polygons.foreach_get('select', selected_polygons)
+
+        polygon_indices = selected_polygons.nonzero()[0]
+
+        polygon_normals = np.empty((len(mesh.polygon_normals), 3), dtype=np.float32)
+        mesh.polygon_normals.foreach_get('vector', polygon_normals.ravel())
+
+        selected_normals = polygon_normals[selected_polygons]
+        if len(polygon_indices) > 0:
+            average_vec = Vector(np.average(selected_normals, axis=0))
+        else:
+            average_vec = Vector((0,0,1))
+
+        zv = Vector((0,0,1))
+        quat = average_vec.rotation_difference(zv).to_matrix()
 
         aspect = self.texaspect
-                    
-        #
-        # Main action
-        #
-        if self.size:
-            sc = 1.0/self.size
-        else:
-            sc = 1.0   
-
-        # Calculate Average Normal
-        cum_vec = Vector((0,0,0))
-        cnt = 0
-        for face in mesh.polygons:
-            if face.select:
-                cnt += 1
-                cum_vec = cum_vec + face.normal
-        
-        zv = Vector((0,0,1))
-        q = cum_vec.rotation_difference(zv)
-                
-
-        sx = 1 * sc
-        sy = 1 * sc
-        sz = 1 * sc
-        ofx = self.xoffset
-        ofy = self.yoffset
+        sc = 1.0 / self.size if self.size != 0 else 1.0
+        sx, sy, sz = sc, sc, sc
         rz = self.zrot / 180 * pi
 
         cosrz = cos(rz)
         sinrz = sin(rz)
 
-        #uvs = mesh.uv_loop_layers[mesh.uv_loop_layers.active_index].data
-        uvs = mesh.uv_layers.active.data
-        for i, pol in enumerate(mesh.polygons):
-            if not is_editmode or mesh.polygons[i].select:
-                for j, loop in enumerate(mesh.polygons[i].loop_indices):
-                    v_idx = mesh.loops[loop].vertex_index
+        mat = np.array([[sx * cosrz, - sy * sinrz, 0, self.xoffset],
+                        [- sx * aspect * sinrz, - sy * aspect * cosrz, 0, self.yoffset]])
 
-                    n = pol.normal
-                    co = q @ mesh.vertices[v_idx].co
-                    x = co.x * sx
-                    y = co.y * sy
-                    z = co.z * sz
-                    uvs[loop].uv[0] =  x * cosrz - y * sinrz + self.xoffset
-                    uvs[loop].uv[1] =  aspect*(- x * sinrz - y * cosrz) + self.yoffset
+        uvmap = mesh.uv_layers.active.data
+        new_uvs = np.empty((len(mesh.loops), 2), dtype=np.float32)
+        uvmap.foreach_get('uv', new_uvs.ravel())
 
-        # Back to EDIT Mode
-        if is_editmode:
+        # mesh_verts = np.empty((len(mesh.vertices), 3), dtype=np.float32)
+        # mesh.vertices.foreach_get('co', mesh_verts.ravel())
+
+        polygons = mesh.polygons if not in_editmode else \
+            np.take(mesh.polygons, polygon_indices)
+        for pol in polygons:
+            for loop in pol.loop_indices:
+                v_idx = mesh.loops[loop].vertex_index
+                co = quat @ mesh.vertices[v_idx].co
+                vec = [*co, 1.0]
+                new_uvs[loop] = vec @ mat.transpose()
+
+        uvmap.foreach_set('uv', new_uvs.ravel())
+
+        if in_editmode:
             bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-

@@ -1,12 +1,15 @@
 bl_info = {
-    "name": "Sure UV Map v.0.6.1",
+    "name": "Sure UV Map v.1.0.0",
+    "version": (1, 0, 0),
     "author": "Alexander Milovsky",
     "blender": (2, 80, 0),
-    "location": "View 3D > UI tab (Press `N` to see the panel). Mapping parameters in Tool Properties (bottom left corner)",
-    "description": "Box / Best Planar UV Map for material with textures",
-    "warning": "",
-    "category": "UV"
+    "location": "View 3D > UI tab (Press `N` to see the panel)",
+    "description": "Box / Best Planar UV Map for materials with textures",
+    "doc_url": "https://github.com/amilovsky/sureuv",
+    "tracker_url": "https://github.com/amilovsky/sureuv/issues",
+    "category": "UV",
 }
+
 
 import bpy
 from . sure_uv_panel import OBJECT_PT_SureUVPanel
