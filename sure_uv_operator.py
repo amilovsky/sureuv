@@ -1,5 +1,6 @@
 from typing import List, Tuple, Any
 import numpy as np
+from math import sin, cos, pi
 
 import bpy
 from bpy.types import Operator, Image
@@ -11,14 +12,15 @@ from bpy.props import (
     StringProperty,
     PointerProperty
 )
-from math import sin, cos, pi
+from bpy_extras.io_utils import ImportHelper
 from mathutils import Vector
 
 from .sure_uv_utils import (get_settings,
                             get_image_by_name,
                             get_box_project_matrices,
                             create_checker_material,
-                            create_checker_image)
+                            create_checker_image,
+                            get_areas_by_type)
 
 
 _log = fake_context = lambda: None
@@ -36,7 +38,7 @@ def update_texture_image(self, context: Any) -> None:
     self.texaspect = w / h
 
 
-class OBJECT_OT_SureUVBoxMappingOperator(Operator):
+class OBJECT_OT_SureUVBoxMapping(Operator):
     bl_idname = 'object.sure_uv_box_mapping'
     bl_label = 'Sure UV Box mapping'
     bl_description = 'Sure UV Box mapping operator'
@@ -200,7 +202,7 @@ class OBJECT_OT_SureUVBoxMappingOperator(Operator):
         return {'FINISHED'}
 
 
-class OBJECT_OT_SureUVPlanarMappingOperator(Operator):
+class OBJECT_OT_SureUVPlanarMapping(Operator):
     bl_idname = 'object.sure_uv_planar_mapping'
     bl_label = 'Sure UV Best Planar mapping'
     bl_description = 'Sure UV Best Planar mapping for selected polygons in EDIT Mode'
@@ -281,7 +283,7 @@ class OBJECT_OT_SureUVPlanarMappingOperator(Operator):
         if in_editmode:
             bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 
-        if not len(mesh.uv_layers)>0:
+        if not len(mesh.uv_layers) > 0:
             bpy.ops.mesh.uv_texture_add()
 
         selected_polygons = np.empty((len(mesh.polygons),), dtype=np.bool)
@@ -309,8 +311,8 @@ class OBJECT_OT_SureUVPlanarMappingOperator(Operator):
         cosrz = cos(rz)
         sinrz = sin(rz)
 
-        mat = np.array([[sx * cosrz, - sy * sinrz, 0, self.xoffset],
-                        [- sx * aspect * sinrz, - sy * aspect * cosrz, 0, self.yoffset]])
+        mat = np.array([[sx * cosrz, -sy * sinrz, 0, self.xoffset],
+                        [sx * aspect * sinrz, sy * aspect * cosrz, 0, self.yoffset]])
 
         uvmap = mesh.uv_layers.active.data
         new_uvs = np.empty((len(mesh.loops), 2), dtype=np.float32)
@@ -378,25 +380,21 @@ class OBJECT_OT_SureUVPlanarMappingOperator(Operator):
         _log.output('-- finish execute --')
         return {'FINISHED'}
 
-class OBJECT_OT_SureUVShowTexturesOperator(Operator):
+class OBJECT_OT_SureUVShowTextures(Operator):
     bl_idname = 'object.sure_uv_show_textures'
     bl_label = 'Show textures'
     bl_description = 'Show textures in viewport'
     bl_options = {'REGISTER', 'UNDO'}
 
-    action: StringProperty(name='Action name')
+    mode: StringProperty(name='Visual style mode', default='MATERIAL')
 
     def draw(self, context):
-        layout = self.layout
-        layout.label(text=f'{self.action}')
+        pass
 
     def act(self, context):
-        for window in bpy.data.window_managers['WinMan'].windows:
-            for area in window.screen.areas:
-                for space in area.spaces:
-                    if space.type == 'VIEW_3D':
-                        space.shading.type = 'MATERIAL'
-    
+        areas = get_areas_by_type('VIEW_3D')
+        for area in areas:
+            area.spaces.active.shading.type = self.mode
 
     def invoke(self, context, event):
         self.act(context)
@@ -412,7 +410,7 @@ class OBJECT_OT_SureUVShowTexturesOperator(Operator):
         return {'FINISHED'}
 
 
-class OBJECT_OT_SureUVCheckerMatOperator(Operator):
+class OBJECT_OT_SureUVCheckerMat(Operator):
     bl_idname = 'object.sure_uv_checker_mat'
     bl_label = 'Sure UV Checker material'
     bl_description = 'Sure UV Checker material operator'
@@ -450,13 +448,14 @@ class OBJECT_OT_SureUVCheckerMatOperator(Operator):
         return {'FINISHED'}
 
 
-class OBJECT_OT_SureUVPreviewMatOperator(Operator):
+class OBJECT_OT_SureUVPreviewMat(Operator):
     bl_idname = 'object.sure_uv_preview_mat'
     bl_label = 'Sure UV Preview material'
     bl_description = 'Sure UV Preview material operator'
     bl_options = {'REGISTER', 'UNDO'}
 
     image_name: StringProperty(default='')
+    action: StringProperty(default='preview_mat')
 
     def draw(self, context):
         pass
@@ -467,9 +466,105 @@ class OBJECT_OT_SureUVPreviewMatOperator(Operator):
 
     def execute(self, context):
         obj = bpy.context.object
-        preview_mat_name = 'sure_uv_preview_mat'
-        mat = create_checker_material(mat_name=preview_mat_name,
-                                      image_name=self.image_name)
-        obj.data.materials.clear()
-        obj.data.materials.append(mat)
+        if self.action == 'preview_mat':
+            preview_mat_name = 'sure_uv_preview_mat'
+            mat = create_checker_material(mat_name=preview_mat_name,
+                                          image_name=self.image_name)
+            obj.data.materials.clear()
+            obj.data.materials.append(mat)
+        elif self.action == 'temp_mat':
+            temp_mat_name = 'sure_uv_tmp_mat'
+            mat = create_checker_material(mat_name=temp_mat_name,
+                                          image_name=self.image_name,
+                                          unique_name=False)
+            obj.data.materials.append(mat)
+            mat_id = len(obj.data.materials) - 1
+            in_editmode = (obj.mode == 'EDIT')
+
+            if in_editmode:
+                bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+
+            for p in obj.data.polygons:
+                if p.select:
+                    p.material_index = mat_id
+
+            if in_editmode:
+                bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        return {'FINISHED'}
+
+
+class OBJECT_OT_SureUVLoadImage(Operator, ImportHelper):
+    bl_idname = 'object.sure_uv_load_image'
+    bl_label = 'Load Image'
+    bl_description = 'Sure UV Load Image into scene operator'
+    bl_options = {'REGISTER', 'UNDO'}
+
+    filter_folder: BoolProperty(
+        name='Filter folders',
+        default=True,
+        options={'HIDDEN'},
+    )
+    filter_image: BoolProperty(
+        name='Filter image',
+        default=True,
+        options={'HIDDEN'},
+    )
+
+    def draw(self, context):
+        pass
+
+    def invoke(self, context, event):
+        return super().invoke(context, event)
+
+    def execute(self, context):
+        img = bpy.data.images.load(self.filepath)
+        settings = get_settings()
+        settings.teximage = img
+        return {'FINISHED'}
+
+
+class OBJECT_OT_SureUVSelectPolygons(Operator):
+    bl_idname = 'object.sure_uv_select_polygons'
+    bl_label = 'Sure UV Select polygons'
+    bl_description = 'Sure UV Select polygons operator'
+    bl_options = {'REGISTER', 'UNDO'}
+
+    action: StringProperty(default='MATERIAL')
+
+    def draw(self, context):
+        pass
+
+    def invoke(self, context, event):
+        self.execute(context)
+        return {'FINISHED'}
+
+    def execute(self, context):
+        try:
+            if self.action == 'MATERIAL':
+                bpy.ops.mesh.select_similar(type='MATERIAL')
+            elif self.action == 'COPLANAR':
+                bpy.ops.mesh.select_similar(type='COPLANAR')
+        except Exception as err:
+            self.report({'ERROR'}, str(err))
+        return {'FINISHED'}
+
+
+class OBJECT_OT_SureUVResetScale(Operator):
+    bl_idname = 'object.sure_uv_reset_scale'
+    bl_label = 'Sure UV Reset Scale'
+    bl_description = 'Sure UV Reset Scale operator'
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def draw(self, context):
+        pass
+
+    def invoke(self, context, event):
+        self.execute(context)
+        return {'FINISHED'}
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            return {'CANCELLED'}
+        obj.scale = (1, 1, 1)
         return {'FINISHED'}

@@ -44,6 +44,27 @@ def get_obj_normals2(obj: Object) -> np.ndarray:
     return normals
 
 
+def get_obj_material_indices(obj: Object) -> np.ndarray:
+    mesh = obj.data
+    indices = np.empty((len(mesh.polygons),), dtype=np.int32)
+    mesh.polygons.foreach_get('material_index', indices.ravel())
+    return indices
+
+
+def get_obj_selected_polygons(obj: Object) -> np.ndarray:
+    mesh = obj.data
+    indices = np.empty((len(mesh.polygons),), dtype=np.int32)
+    mesh.polygons.foreach_get('select', indices.ravel())
+    return indices
+
+
+def get_most_frequent_material(obj: Object) -> int:
+    mat_indices = get_obj_material_indices(obj)
+    values, counts = np.unique(mat_indices, return_counts=True)
+    ind = np.argmax(counts)
+    return values[ind]
+
+
 def to_homogeneous(np_arr: np.ndarray) -> np.ndarray:
     return np.pad(np_arr, (0, 1), 'constant', constant_values=1)
 
@@ -161,12 +182,15 @@ def create_checker_image(*, generated_type: str='COLOR_GRID',
     return tex
 
 
-def create_checker_material(*, mat_name: str, image_name: str) -> Material:
-    mat = get_material_by_name(mat_name)
+def create_checker_material(*, mat_name: str, image_name: str,
+                            unique_name: bool=True) -> Material:
+    mat = None
+    if unique_name:
+        mat = get_material_by_name(mat_name)
     if mat is None:
         mat = create_new_mat(mat_name)
-    mat.use_nodes = True
 
+    mat.use_nodes = True
     mat.node_tree.nodes.clear()
 
     principled_node = mat.node_tree.nodes.new('ShaderNodeBsdfPrincipled')
@@ -187,3 +211,20 @@ def create_checker_material(*, mat_name: str, image_name: str) -> Material:
         tex_node.outputs['Color'],
         principled_node.inputs['Base Color'])
     return mat
+
+
+def get_areas_by_type(area_type: str='VIEW_3D') -> List:
+    areas = []
+    for window in bpy.data.window_managers['WinMan'].windows:
+        for area in window.screen.areas:
+            if area.type == area_type:
+                areas.append(area)
+    return areas
+
+
+def get_area_shading_mode(context: Any) -> str:
+    area = context.area
+    for space in area.spaces:
+        if space.type == 'VIEW_3D':
+            return space.shading.type
+    return 'NONE'

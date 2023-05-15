@@ -13,20 +13,26 @@ bl_info = {
 
 import bpy
 from . sure_uv_panel import OBJECT_PT_SureUVPanel
-from . sure_uv_operator import (OBJECT_OT_SureUVShowTexturesOperator,
-                                OBJECT_OT_SureUVBoxMappingOperator,
-                                OBJECT_OT_SureUVPlanarMappingOperator,
-                                OBJECT_OT_SureUVCheckerMatOperator,
-                                OBJECT_OT_SureUVPreviewMatOperator)
+from . sure_uv_operator import (OBJECT_OT_SureUVShowTextures,
+                                OBJECT_OT_SureUVBoxMapping,
+                                OBJECT_OT_SureUVPlanarMapping,
+                                OBJECT_OT_SureUVCheckerMat,
+                                OBJECT_OT_SureUVPreviewMat,
+                                OBJECT_OT_SureUVLoadImage,
+                                OBJECT_OT_SureUVSelectPolygons,
+                                OBJECT_OT_SureUVResetScale)
 from . sure_uv_settings import SureUVSettings
 
 classes = (
     OBJECT_PT_SureUVPanel,
-    OBJECT_OT_SureUVShowTexturesOperator,
-    OBJECT_OT_SureUVBoxMappingOperator,
-    OBJECT_OT_SureUVPlanarMappingOperator,
-    OBJECT_OT_SureUVCheckerMatOperator,
-    OBJECT_OT_SureUVPreviewMatOperator,
+    OBJECT_OT_SureUVShowTextures,
+    OBJECT_OT_SureUVBoxMapping,
+    OBJECT_OT_SureUVPlanarMapping,
+    OBJECT_OT_SureUVCheckerMat,
+    OBJECT_OT_SureUVPreviewMat,
+    OBJECT_OT_SureUVLoadImage,
+    OBJECT_OT_SureUVSelectPolygons,
+    OBJECT_OT_SureUVResetScale,
     SureUVSettings,
 )
 

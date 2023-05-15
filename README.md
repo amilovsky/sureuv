@@ -1,6 +1,6 @@
 # Sure UV Mapping add-on for Blender
 
-This addon creates UV coordinates using Box mapping and Best Planar projection for selected polygons. For non-square textures script calculates proper proportion to avoid of texture stretching. You can specify the exact Size of the texture on the object.
+This addon creates UV coordinates using Box mapping and Best Planar projection for selected polygons. For non-square textures script calculates proper proportion to avoid stretching. You can specify the exact Size of the texture on the object.
 
 SureUV addon is very useful for fast architectural texturing.
 
@@ -13,4 +13,4 @@ Direct download link: https://github.com/amilovsky/sureuv/archive/master.zip
 - Switch to **Add-ons** tab
 - Press **Install...** button
 - and select downloaded ZIP-file
-- Switch on Sure UV Mapping add-on checkbox
+- Switch on **Sure UV Mapping** add-on checkbox
