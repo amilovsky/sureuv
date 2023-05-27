@@ -1,3 +1,4 @@
+import bpy
 from bpy.types import Panel
 from .sure_uv_utils import get_area_shading_mode
 
@@ -15,7 +16,10 @@ class OBJECT_PT_SureUVPanel(Panel):
 
     def _draw_show_texture_mode(self, layout, context):
         mode = get_area_shading_mode(context)
-        if mode != 'MATERIAL':
+        if mode not in {'MATERIAL', 'RENDERED'}:
+            col = layout.column()
+            col.alert = True
+            col.label(text='Texures are not visible!')
             op = layout.operator('object.sure_uv_show_textures',
                                  text='Show texture mode', icon='MATERIAL')
             op.mode = 'MATERIAL'
@@ -28,15 +32,15 @@ class OBJECT_PT_SureUVPanel(Panel):
     def _draw_how_to_use(self, layout):
         col = layout.column()
         col.scale_y = 0.75
-        col.label(text='How to use:')
+        col.label(text='How to use Sure UV:')
         col.label(text='1. Make material with ')
-        col.label(text='the raster Texture')
-        col.label(text='2. Select the Texture to determine')
-        col.label(text='texture Aspect')
-        col.label(text='3. Use the Box mapping ')
+        col.label(text='a raster Texture')
+        col.label(text='2. Select a Texture from list')
+        col.label(text='to set up the Texture Aspect')
+        col.label(text='3. Use the Box mapping')
         col.label(text='on a whole object')
         col.label(text='4. Use the Best Planar mapping')
-        col.label(text='on selected faces')
+        col.label(text='on selected faces in EDIT mode')
 
     def _draw_checkers(self, layout):
         col = layout.column(align=True)
@@ -99,24 +103,23 @@ class OBJECT_PT_SureUVPanel(Panel):
 
     def draw(self, context):
         scene = context.scene
-        obj = context.object
         settings = scene.sure_uv_settings
         layout = self.layout
+        image_name = settings.teximage.name if settings.teximage else ''
 
         self._draw_show_texture_mode(layout, context)
 
-
         col = layout.column(align=True)
         aspect = settings.texaspect if settings.texaspect != 0.0 else 1.0
-        col.label(text='Texture aspect: {:.4}'.format(aspect))
+        col.label(text='Texture Aspect: {:.4}'.format(aspect))
         col.template_ID_preview(settings, 'teximage', rows=4, cols=6, hide_buttons=True)
         col.operator('object.sure_uv_load_image', text='Load image in scene',
                      icon='FILEBROWSER')
 
-        image_name = settings.teximage.name if settings.teximage else ''
+        self._draw_uv_mapping(layout, image_name)
 
         col = layout.column(align=True)
-        col.label(text='Assign preview material with texture:')
+        col.label(text='Assign preview material:')
         row = col.row(align=True)
         op = row.operator('object.sure_uv_preview_mat',
                           text='Single', icon='NODE_MATERIAL')
@@ -127,9 +130,11 @@ class OBJECT_PT_SureUVPanel(Panel):
         op.image_name = image_name
         op.action = 'temp_mat'
 
-        # layout.prop(settings,'autotexaspect')
-        self._draw_uv_mapping(layout, image_name)
-        self._draw_select_polygons(layout)
+        if bpy.context.mode == 'EDIT_MESH' and \
+                bpy.context.tool_settings.mesh_select_mode[2]:
+            self._draw_select_polygons(layout)
+
         self._draw_scale_warning(layout, context)
         self._draw_checkers(layout)
-        # self._draw_how_to_use(layout)
+
+        self._draw_how_to_use(layout)

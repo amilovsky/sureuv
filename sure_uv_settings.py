@@ -16,4 +16,4 @@ class SureUVSettings(PropertyGroup):
     autotexaspect: BoolProperty(name='Auto texture Aspect', default=True,
                                 description='Automatically detect Texture '
                                             'Aspect when selecting a texture')
-    texaspect: FloatProperty(name='Texture Aspect', default=1.0, precision=4)
+    texaspect: FloatProperty(name='Texture aspect', default=1.0, precision=4)

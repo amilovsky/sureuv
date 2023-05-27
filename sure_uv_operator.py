@@ -1,3 +1,4 @@
+import logging
 from typing import List, Tuple, Any
 import numpy as np
 from math import sin, cos, pi
@@ -23,8 +24,10 @@ from .sure_uv_utils import (get_settings,
                             get_areas_by_type)
 
 
-_log = fake_context = lambda: None
-_log.output = print
+_logger = logging.getLogger(__name__)
+_log = lambda: None
+_log.output = _logger.debug
+_log.error = _logger.error
 
 
 def update_texture_image(self, context: Any) -> None:
@@ -40,8 +43,8 @@ def update_texture_image(self, context: Any) -> None:
 
 class OBJECT_OT_SureUVBoxMapping(Operator):
     bl_idname = 'object.sure_uv_box_mapping'
-    bl_label = 'Sure UV Box mapping'
-    bl_description = 'Sure UV Box mapping operator'
+    bl_label = 'Box mapping'
+    bl_description = 'Check mapping options in the left bottom corner of 3D View'
     bl_options = {'REGISTER', 'UNDO'}
 
     texture_image: StringProperty(name='Image', update=update_texture_image)
@@ -204,8 +207,9 @@ class OBJECT_OT_SureUVBoxMapping(Operator):
 
 class OBJECT_OT_SureUVPlanarMapping(Operator):
     bl_idname = 'object.sure_uv_planar_mapping'
-    bl_label = 'Sure UV Best Planar mapping'
-    bl_description = 'Sure UV Best Planar mapping for selected polygons in EDIT Mode'
+    bl_label = 'Best Planar mapping'
+    bl_description = 'Mapping for selected polygons in EDIT Mode. ' \
+                     'Check mapping options in the left bottom corner of 3D View'
     bl_options = {'REGISTER', 'UNDO'}
 
     texture_image: StringProperty(name='Image', update=update_texture_image)
@@ -412,8 +416,8 @@ class OBJECT_OT_SureUVShowTextures(Operator):
 
 class OBJECT_OT_SureUVCheckerMat(Operator):
     bl_idname = 'object.sure_uv_checker_mat'
-    bl_label = 'Sure UV Checker material'
-    bl_description = 'Sure UV Checker material operator'
+    bl_label = 'Checker material'
+    bl_description = 'Apply checker material to whole mesh'
     bl_options = {'REGISTER', 'UNDO'}
 
     template: StringProperty(default='UV_GRID')
@@ -450,8 +454,9 @@ class OBJECT_OT_SureUVCheckerMat(Operator):
 
 class OBJECT_OT_SureUVPreviewMat(Operator):
     bl_idname = 'object.sure_uv_preview_mat'
-    bl_label = 'Sure UV Preview material'
-    bl_description = 'Sure UV Preview material operator'
+    bl_label = 'Preview material'
+    bl_description = 'Apply temporary preview material with the currently ' \
+                     'selected Texture to a whole object or selected polygons'
     bl_options = {'REGISTER', 'UNDO'}
 
     image_name: StringProperty(default='')
@@ -496,7 +501,8 @@ class OBJECT_OT_SureUVPreviewMat(Operator):
 class OBJECT_OT_SureUVLoadImage(Operator, ImportHelper):
     bl_idname = 'object.sure_uv_load_image'
     bl_label = 'Load Image'
-    bl_description = 'Sure UV Load Image into scene operator'
+    bl_description = 'Load a texture image into the scene. ' \
+                     'It can be used for fast texturing'
     bl_options = {'REGISTER', 'UNDO'}
 
     filter_folder: BoolProperty(
